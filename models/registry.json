@@ -1,0 +1,38 @@
+{
+  "default_model": "baseline",
+  "models": [
+    {
+      "id": "baseline",
+      "label": "SBERT baseline",
+      "type": "baseline",
+      "path": null,
+      "created_at": null,
+      "status": "ready",
+      "baseline_model_name": "sentence-transformers/all-MiniLM-L6-v2",
+      "metrics": {}
+    },
+    {
+      "id": "finetuned-20260310-125006",
+      "label": "finetuned-20260310-125006",
+      "type": "finetuned",
+      "path": "models/finetuned\\finetuned-20260310-125006",
+      "created_at": "2026-03-10T12:50:14+00:00",
+      "status": "ready",
+      "metrics": {
+        "epochs": 1,
+        "batch_size": 2,
+        "train_examples": 3,
+        "pos_threshold": 2
+      }
+    },
+    {
+      "id": "legacy-finetuned",
+      "label": "Legacy fine-tuned",
+      "type": "finetuned",
+      "path": "models/finetuned",
+      "created_at": null,
+      "status": "ready",
+      "metrics": {}
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.nox/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments and local Python tooling
+.venv/
+venv/
+env/
+ENV/
+.python-version
+.ipynb_checkpoints/
+
+# Packaging and build outputs
+build/
+dist/
+site/
+.eggs/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+
+# Logs and runtime files
+*.log
+*.out
+*.err
+*.pid
+*.pid.lock
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+
+# ML and experiment artifacts
+checkpoints/
+runs/
+wandb/
+mlruns/
+lightning_logs/
+tensorboard/
+events.out.tfevents.*
+
+# Model artifacts and caches
+models/finetuned/
+models/hf-cache/
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.joblib
+*.pkl
+*.pickle
+
+# Data artifacts
+data/raw/
+data/interim/
+data/processed/
+data/external/
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.sqlite
+*.db
+
+# Backend local storage
+backend/storage/
+
+# Node / frontend artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/.cache/
+*.tsbuildinfo
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Windows local cache noise
+Microsoft/
+
+# Allow placeholder files in ignored directories when needed
+!data/**/.gitkeep
+!checkpoints/**/.gitkeep
+!models/**/.gitkeep

@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+sentence-transformers
+transformers
+torch
+accelerate
+scikit-learn
+numpy
+pandas
+pymupdf
+python-docx
+tqdm
+rapidfuzz
+firebase-admin
