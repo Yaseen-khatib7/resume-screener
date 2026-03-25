@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.utils import formataddr
 import smtplib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import FastAPI, UploadFile, File, Form, Depends, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,7 +58,11 @@ def load_env_file(path: str) -> None:
 load_env_file(os.path.join("backend", ".env"))
 
 BASELINE_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-FINETUNED_ROOT = "models/finetuned"
+APP_DATA_ROOT = os.getenv("APP_DATA_ROOT", "").strip()
+MODEL_ROOT = os.getenv("MODEL_ROOT", "").strip() or (
+    os.path.join(APP_DATA_ROOT, "models") if APP_DATA_ROOT else "models"
+)
+FINETUNED_ROOT = os.getenv("FINETUNED_ROOT", "").strip() or os.path.join(MODEL_ROOT, "finetuned")
 
 MAX_FILE_MB = 12
 MIN_TEXT_CHARS = 300
@@ -66,7 +71,9 @@ CHUNK_SIZE = 1400
 CHUNK_OVERLAP = 160
 MAX_TEXT_CHUNKS = 4
 
-STORAGE_ROOT = os.path.join("backend", "storage")
+STORAGE_ROOT = os.getenv("STORAGE_ROOT", "").strip() or (
+    os.path.join(APP_DATA_ROOT, "backend-storage") if APP_DATA_ROOT else os.path.join("backend", "storage")
+)
 
 app = FastAPI(title="Resume Screening API")
 
@@ -599,6 +606,24 @@ def extract_project_candidates_from_resume(text: str) -> List[str]:
                 cleaned_parts.append(p)
         return cleaned_parts
 
+    def _looks_like_project_heading(value: str) -> bool:
+        lowered = value.lower().strip()
+        if len(lowered) < 8 or len(lowered) > 120:
+            return False
+        if re.search(
+            r"\b(built|developed|designed|implemented|created|launched|deployed|engineered|architected|automated|trained|enabled|resolved|utilized|integrated|added|optimized|analyzed|managed|fine-tuned)\b",
+            lowered,
+        ):
+            return False
+        if re.search(r"\b(certification|certifications|certificate|networking|tutorials|academy|ibm|deeplearning\.ai|introduction to|course)\b", lowered):
+            return False
+        if "|" in value:
+            return True
+        if re.search(r"\b(project|platform|system|application|app|assistant|tracker|solution|detection|analytics)\b", lowered):
+            return True
+        title_case_words = re.findall(r"[A-Z][A-Za-z0-9+#&.-]*", value)
+        return len(title_case_words) >= 2
+
     def _looks_like_project_line(value: str) -> bool:
         lowered = value.lower()
         action_hit = bool(
@@ -622,8 +647,13 @@ def extract_project_candidates_from_resume(text: str) -> List[str]:
         return (action_hit and context_hit) or (context_hit and tech_hit)
 
     cleaned = _split_parts(projects_text)
-    if not cleaned and experience_text:
-        cleaned = [part for part in _split_parts(experience_text) if _looks_like_project_line(part)]
+    heading_candidates = [part for part in cleaned if _looks_like_project_heading(part)]
+    if heading_candidates:
+        cleaned = heading_candidates
+    elif not cleaned and experience_text:
+        experience_parts = _split_parts(experience_text)
+        heading_candidates = [part for part in experience_parts if _looks_like_project_heading(part)]
+        cleaned = heading_candidates or [part for part in experience_parts if _looks_like_project_line(part)]
 
     seen = set()
     out = []
@@ -633,7 +663,7 @@ def extract_project_candidates_from_resume(text: str) -> List[str]:
             continue
         seen.add(key)
         out.append(part)
-        if len(out) >= 5:
+        if len(out) >= 8:
             break
     return out
 
@@ -663,8 +693,25 @@ def extract_experience_years(text: str) -> str:
             return f"{int(best)} years"
         return f"{best:.1f} years"
 
-    # fallback rough detection from date ranges like 2019 - 2023
-    year_pairs = re.findall(r"(20\d{2}|19\d{2})\s*[-–to]+\s*(20\d{2}|19\d{2}|present|current)", text_l)
+    # Fallback from date ranges only when the surrounding line looks like work history.
+    experience_like_lines = []
+    for raw_line in text_l.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if re.search(
+            r"\b(education|degree|bachelor|master|b\.tech|bba|bca|bsc|class 10|class 12|cgpa|percentage|hsc|ssc|cisce|cbse|school|college|university)\b",
+            line,
+        ):
+            continue
+        if re.search(
+            r"\b(experience|intern|internship|worked|employment|engineer|developer|analyst|manager|consultant|associate|executive|campus ambassador|trainee)\b",
+            line,
+        ):
+            experience_like_lines.append(line)
+
+    experience_text = "\n".join(experience_like_lines)
+    year_pairs = re.findall(r"(20\d{2}|19\d{2})\s*[-–to]+\s*(20\d{2}|19\d{2}|present|current)", experience_text)
     total = 0.0
     for a, b in year_pairs[:6]:
         try:
@@ -720,6 +767,7 @@ def build_candidate_intelligence(
     jd_preferred: set[str],
     ats_result: Dict[str, Any],
     graph_config: Dict[str, Any] | None = None,
+    generate_questions: bool = True,
 ) -> Dict[str, Any]:
     graph_override = _skill_graph_override_or_none(graph_config or _load_skill_graph_config())
     graph_analysis = analyze_skill_graph_match(
@@ -739,13 +787,28 @@ def build_candidate_intelligence(
         ats_score=float(ats_result.get("atsScore", 0.0)),
         ats_status=ats_result.get("atsStatus"),
     )
-    interview_questions = generate_interview_questions(
-        {
-            "skills": sorted(jd_required & set(extract_skills(resume_text)[0])),
-            "projects": extract_project_candidates_from_resume(resume_text),
-            "missingRequired": sorted(jd_required - set(extract_skills(resume_text)[0])),
-            "missingPreferred": sorted(jd_preferred - set(extract_skills(resume_text)[0])),
-            "experienceYears": extract_experience_years(resume_text),
+    resume_skills, _ = extract_skills(resume_text)
+    matched_skills = sorted(set(resume_skills) & (jd_required | jd_preferred))
+    missing_required = sorted(jd_required - set(resume_skills))
+    missing_preferred = sorted(jd_preferred - set(resume_skills))
+    candidate_projects = extract_project_candidates_from_resume(resume_text)
+    candidate_experience_years = extract_experience_years(resume_text)
+    interview_questions = (
+        generate_interview_questions(
+            {
+                "skills": matched_skills,
+                "projects": candidate_projects,
+                "missingRequired": missing_required,
+                "missingPreferred": missing_preferred,
+                "experienceYears": candidate_experience_years,
+            }
+        )
+        if generate_questions
+        else {
+            "skillQuestions": ["Interview questions are generated for shortlisted candidates only."],
+            "projectQuestions": [],
+            "weaknessQuestions": [],
+            "experienceQuestions": [],
         }
     )
     return {
@@ -842,14 +905,30 @@ def score_candidates(
     jd_embeddings = embedding_cache.get((jd_text or "").strip())
 
     jd_req, jd_pref = split_jd_required_preferred(jd_text)
-    style_label = match_style_label(match_style)
+    style_value = max(0.0, min(1.0, float(match_style)))
+    style_label = match_style_label(style_value)
 
-    strict_bonus = 0.06 * match_style
-    semantic_w = 0.46 - strict_bonus
-    req_w = 0.22 + strict_bonus
-    pref_w = 0.08
-    exp_w = 0.10
-    graph_w = 0.14
+    # Interpolate between two scoring profiles so the slider has a visible impact.
+    flexible_profile = {
+        "semantic": 0.52,
+        "required": 0.14,
+        "preferred": 0.10,
+        "experience": 0.10,
+        "graph": 0.14,
+    }
+    strict_profile = {
+        "semantic": 0.34,
+        "required": 0.34,
+        "preferred": 0.06,
+        "experience": 0.10,
+        "graph": 0.16,
+    }
+
+    semantic_w = flexible_profile["semantic"] + (strict_profile["semantic"] - flexible_profile["semantic"]) * style_value
+    req_w = flexible_profile["required"] + (strict_profile["required"] - flexible_profile["required"]) * style_value
+    pref_w = flexible_profile["preferred"] + (strict_profile["preferred"] - flexible_profile["preferred"]) * style_value
+    exp_w = flexible_profile["experience"] + (strict_profile["experience"] - flexible_profile["experience"]) * style_value
+    graph_w = flexible_profile["graph"] + (strict_profile["graph"] - flexible_profile["graph"]) * style_value
 
     results = []
     resume_lookup = {r["name"]: r["text"] for r in resumes_data}
@@ -899,13 +978,18 @@ def score_candidates(
         ) * 100.0
         score = (score * 0.82) + (ats_signal * 18.0)
         if req_cov >= 0.5:
-            score += 8.0
+            score += 4.0 + (8.0 * style_value)
         elif req_cov >= 0.3:
-            score += 4.0
+            score += 2.0 + (4.0 * style_value)
         if semantic_score >= 0.55:
-            score += 6.0
+            score += 8.0 - (4.0 * style_value)
         elif semantic_score >= 0.4:
-            score += 3.0
+            score += 4.0 - (2.0 * style_value)
+        if jd_req:
+            if req_cov == 0.0:
+                score -= 14.0 + (8.0 * style_value)
+            elif req_cov < 0.12:
+                score -= 4.0 + (4.0 * style_value)
         score = round(max(0.0, min(100.0, score)), 1)
 
         matched = sorted(list(res_skills & (jd_req | jd_pref)))
@@ -962,25 +1046,50 @@ def score_candidates(
         for item in results
         if item.get("atsDecision") != "Reject"
     ][:5]
-    enrich_names = set(top_ranked_names) | {item["candidate"] for item in shortlist}
-
-    for item in results:
-        if item["candidate"] not in enrich_names:
-            continue
-        resume_text = resume_lookup.get(item["candidate"], "")
-        ats_result = (ats_results_by_candidate or {}).get(item["candidate"]) or {}
-        intelligence = build_candidate_intelligence(
-            resume_text=resume_text,
-            jd_text=jd_text,
-            jd_required=jd_req,
-            jd_preferred=jd_pref,
-            ats_result=ats_result,
-            graph_config=graph_config,
-        )
-        item.update(intelligence)
-        item["explanation"] = apply_intelligence_to_explanation(item.get("explanation", {}), intelligence)
-
     shortlist_names = {item["candidate"] for item in shortlist}
+    enrich_names = set(top_ranked_names) | {item["candidate"] for item in shortlist}
+    items_to_enrich = [item for item in results if item["candidate"] in enrich_names]
+    max_workers = min(4, max(1, len(items_to_enrich)))
+
+    if max_workers == 1:
+        for item in items_to_enrich:
+            resume_text = resume_lookup.get(item["candidate"], "")
+            ats_result = (ats_results_by_candidate or {}).get(item["candidate"]) or {}
+            intelligence = build_candidate_intelligence(
+                resume_text=resume_text,
+                jd_text=jd_text,
+                jd_required=jd_req,
+                jd_preferred=jd_pref,
+                ats_result=ats_result,
+                graph_config=graph_config,
+                generate_questions=item["candidate"] in shortlist_names,
+            )
+            item.update(intelligence)
+            item["explanation"] = apply_intelligence_to_explanation(item.get("explanation", {}), intelligence)
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="candidate-intel") as executor:
+            future_map = {}
+            for item in items_to_enrich:
+                resume_text = resume_lookup.get(item["candidate"], "")
+                ats_result = (ats_results_by_candidate or {}).get(item["candidate"]) or {}
+                future = executor.submit(
+                    build_candidate_intelligence,
+                    resume_text=resume_text,
+                    jd_text=jd_text,
+                    jd_required=jd_req,
+                    jd_preferred=jd_pref,
+                    ats_result=ats_result,
+                    graph_config=graph_config,
+                    generate_questions=item["candidate"] in shortlist_names,
+                )
+                future_map[future] = item
+
+            for future in as_completed(future_map):
+                item = future_map[future]
+                intelligence = future.result()
+                item.update(intelligence)
+                item["explanation"] = apply_intelligence_to_explanation(item.get("explanation", {}), intelligence)
+
     shortlist = [item for item in results if item["candidate"] in shortlist_names]
 
     return {

@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 
-REGISTRY_PATH = os.path.join("models", "registry.json")
+APP_DATA_ROOT = os.getenv("APP_DATA_ROOT", "").strip()
+MODEL_ROOT = os.getenv("MODEL_ROOT", "").strip() or (
+    os.path.join(APP_DATA_ROOT, "models") if APP_DATA_ROOT else "models"
+)
+REGISTRY_PATH = os.getenv("MODEL_REGISTRY_PATH", "").strip() or os.path.join(MODEL_ROOT, "registry.json")
 BASELINE_ID = "baseline"
 LEGACY_FINETUNED_ID = "legacy-finetuned"
 

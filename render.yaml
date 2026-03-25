@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: resume-screening-backend
+    runtime: python
+    plan: starter
+    rootDir: .
+    disk:
+      name: app-data
+      mountPath: /var/data
+      sizeGB: 10
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /models
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: APP_DATA_ROOT
+        value: /var/data
+      - key: MODEL_ROOT
+        value: /var/data/models
+      - key: FINETUNED_ROOT
+        value: /var/data/models/finetuned
+      - key: MODEL_REGISTRY_PATH
+        value: /var/data/models/registry.json
+      - key: STORAGE_ROOT
+        value: /var/data/backend-storage
+      - key: HF_CACHE_ROOT
+        value: /var/data/models/hf-cache
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAILS
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: Resume Screening System
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: GITHUB_OPENAI_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_MODELS_CHAT_MODEL
+        value: openai/gpt-4.1-nano
+      - key: GITHUB_MODELS_TIMEOUT_SECONDS
+        value: "10"
+      - key: HF_TOKEN
+        sync: false

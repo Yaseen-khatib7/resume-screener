@@ -1,5 +1,5 @@
 import type { Candidate } from "../types/screening";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isAxiosError } from "axios";
 import { api } from "../api";
 
@@ -35,38 +35,45 @@ export default function CandidateDrawer({
   const [mailStatus, setMailStatus] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<null | "accept" | "reject" | "process">(null);
   const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewQuestions, setInterviewQuestions] = useState<Candidate["interviewQuestions"]>({});
   const [questionGroupsOpen, setQuestionGroupsOpen] = useState({
     skill: true,
     project: false,
     weakness: false,
     experience: false,
   });
-
-  if (!open || !candidate) return null;
   const currentCandidate = candidate;
 
-  const explanation = currentCandidate.explanation || {};
-  const projects = currentCandidate.projects || [];
-  const skills = currentCandidate.skills || currentCandidate.matchedSkills || [];
-  const recommendation = explanation.recommendation || currentCandidate.recommendation;
-  const recommendationReason = explanation.recommendationReason || currentCandidate.recommendationReason;
-  const missingSkills = [...(currentCandidate.missingRequired || []), ...(currentCandidate.missingPreferred || [])];
+  const explanation = currentCandidate?.explanation || {};
+  const projects = currentCandidate?.projects || [];
+  const skills = currentCandidate?.skills || currentCandidate?.matchedSkills || [];
+  const recommendation = explanation.recommendation || currentCandidate?.recommendation;
+  const recommendationReason = explanation.recommendationReason || currentCandidate?.recommendationReason;
+  const missingSkills = [...(currentCandidate?.missingRequired || []), ...(currentCandidate?.missingPreferred || [])];
   const uniqueMissing = Array.from(new Set(missingSkills));
-  const atsReasons = currentCandidate.atsReasons || [];
-  const atsWarnings = currentCandidate.atsWarnings || [];
-  const breakdown = currentCandidate.atsBreakdown;
-  const contactEmail = currentCandidate.contactEmail || "";
-  const normalizedSkills = currentCandidate.normalizedSkills || [];
-  const graphMatchedSkills = currentCandidate.graphMatchedSkills || [];
-  const graphMissingSkills = currentCandidate.graphMissingSkills || [];
-  const fraudReasons = currentCandidate.fraudReasons || [];
-  const qualityReasons = currentCandidate.resumeQualityReasons || [];
-  const improvementSuggestions = currentCandidate.improvementSuggestions || [];
-  const interviewQuestions = currentCandidate.interviewQuestions || {};
-  const skillQuestions = interviewQuestions.skillQuestions || [];
-  const projectQuestions = interviewQuestions.projectQuestions || [];
-  const weaknessQuestions = interviewQuestions.weaknessQuestions || [];
-  const experienceQuestions = interviewQuestions.experienceQuestions || [];
+  const atsReasons = currentCandidate?.atsReasons || [];
+  const atsWarnings = currentCandidate?.atsWarnings || [];
+  const breakdown = currentCandidate?.atsBreakdown;
+  const contactEmail = currentCandidate?.contactEmail || "";
+  const fraudReasons = currentCandidate?.fraudReasons || [];
+  const qualityReasons = currentCandidate?.resumeQualityReasons || [];
+  const improvementSuggestions = currentCandidate?.improvementSuggestions || [];
+  const loadedQuestions = interviewQuestions || {};
+  const skillQuestions = loadedQuestions.skillQuestions || [];
+  const projectQuestions = loadedQuestions.projectQuestions || [];
+  const weaknessQuestions = loadedQuestions.weaknessQuestions || [];
+  const experienceQuestions = loadedQuestions.experienceQuestions || [];
+
+  useEffect(() => {
+    setInterviewQuestions(candidate?.interviewQuestions || {});
+    setInterviewOpen(false);
+  }, [candidate]);
+
+  if (!open || !currentCandidate) {
+    return null;
+  }
+
+  const drawerCandidate = currentCandidate;
 
   function toggleQuestionGroup(group: "skill" | "project" | "weakness" | "experience") {
     setQuestionGroupsOpen((current) => ({
@@ -86,19 +93,19 @@ export default function CandidateDrawer({
     try {
       const res = await api.post("/candidate-email", {
         action,
-        candidate: currentCandidate.candidate,
-        candidateName: currentCandidate.candidateName || currentCandidate.candidate,
+        candidate: drawerCandidate.candidate,
+        candidateName: drawerCandidate.candidateName || drawerCandidate.candidate,
         contactEmail,
-        atsStatus: currentCandidate.atsStatus,
-        atsDecision: currentCandidate.atsDecision,
-        screeningSkipped: Boolean(currentCandidate.screeningSkipped),
-        score: currentCandidate.score,
-        atsScore: currentCandidate.atsScore,
+        atsStatus: drawerCandidate.atsStatus,
+        atsDecision: drawerCandidate.atsDecision,
+        screeningSkipped: Boolean(drawerCandidate.screeningSkipped),
+        score: drawerCandidate.score,
+        atsScore: drawerCandidate.atsScore,
         recommendation,
         recommendationReason,
-        matchedSkills: currentCandidate.matchedSkills || [],
-        missingRequired: currentCandidate.missingRequired || [],
-        missingPreferred: currentCandidate.missingPreferred || [],
+        matchedSkills: drawerCandidate.matchedSkills || [],
+        missingRequired: drawerCandidate.missingRequired || [],
+        missingPreferred: drawerCandidate.missingPreferred || [],
         atsReasons,
         explanationSummary: explanation.summary || "",
         whyBad: explanation.whyBad || [],
@@ -276,56 +283,6 @@ export default function CandidateDrawer({
             ) : null}
           </div>
         )}
-
-        <div className="drawerSection">
-          <div className="sectionTitle">Skill Graph Match</div>
-          <div className="rowBetween">
-            <div style={{ fontSize: 13, fontWeight: 700 }}>
-              Graph-aware skill score: {currentCandidate.graphSkillScore ?? 0}/100
-            </div>
-            <div className="hint">
-              Related tools and concepts are counted even when the wording differs.
-            </div>
-          </div>
-
-          <div className="chips" style={{ marginTop: 10 }}>
-            {normalizedSkills.length ? (
-              normalizedSkills.map((skill) => (
-                <span key={skill} className="chip">
-                  {skill}
-                </span>
-              ))
-            ) : (
-              <span className="hint">No normalized graph skills were extracted.</span>
-            )}
-          </div>
-
-          <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700 }}>Graph matches</div>
-          {graphMatchedSkills.length ? (
-            <ul style={{ marginTop: 8 }}>
-              {graphMatchedSkills.map((item) => (
-                <li key={item} style={{ fontSize: 13, marginBottom: 6 }}>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="hint" style={{ marginTop: 8 }}>No graph-based skill matches were found.</div>
-          )}
-
-          <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700 }}>Graph gaps</div>
-          <div className="chips" style={{ marginTop: 8 }}>
-            {graphMissingSkills.length ? (
-              graphMissingSkills.map((item) => (
-                <span key={item} className="chip warn">
-                  {item}
-                </span>
-              ))
-            ) : (
-              <span className="hint">No graph-based skill gaps were detected.</span>
-            )}
-          </div>
-        </div>
 
         <div className="drawerSection">
           <div className="sectionTitle">Fraud Risk</div>

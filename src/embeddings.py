@@ -1,7 +1,11 @@
 import os
 import numpy as np
 
-PROJECT_CACHE_ROOT = os.path.join("models", "hf-cache")
+APP_DATA_ROOT = os.getenv("APP_DATA_ROOT", "").strip()
+MODEL_ROOT = os.getenv("MODEL_ROOT", "").strip() or (
+    os.path.join(APP_DATA_ROOT, "models") if APP_DATA_ROOT else "models"
+)
+PROJECT_CACHE_ROOT = os.getenv("HF_CACHE_ROOT", "").strip() or os.path.join(MODEL_ROOT, "hf-cache")
 os.makedirs(PROJECT_CACHE_ROOT, exist_ok=True)
 os.environ.setdefault("HF_HOME", PROJECT_CACHE_ROOT)
 os.environ.setdefault("HUGGINGFACE_HUB_CACHE", os.path.join(PROJECT_CACHE_ROOT, "hub"))

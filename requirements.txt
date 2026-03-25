@@ -13,3 +13,5 @@ python-docx
 tqdm
 rapidfuzz
 firebase-admin
+azure-ai-inference
+azure-core

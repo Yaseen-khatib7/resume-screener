@@ -102,6 +102,23 @@ def _score_sections(text: str) -> tuple[float, List[str], List[str], Dict[str, A
         name: bool((sections.get(name) or "").strip())
         for name in ("skills", "experience", "education", "projects")
     }
+    lowered = (text or "").lower()
+
+    if not present["education"]:
+        present["education"] = bool(
+            re.search(r"\b(bachelor(?:'s)?|b\.?\s*tech|b\.?\s*e\b|bba\b|bca\b|bsc\b|b\.sc\b|mca\b|mba\b|m\.?\s*tech|master(?:'s)?)\b", lowered)
+            or re.search(r"\b(class\s*(10|12)|xth|xiith|hsc|ssc|cisce|cbse|cgpa|percentage)\b", lowered)
+        )
+
+    if not present["experience"]:
+        present["experience"] = bool(
+            re.search(r"\b(intern(?:ship)?|campus ambassador|employment|worked at|work experience|professional experience|trainee)\b", lowered)
+        )
+
+    if not present["projects"]:
+        present["projects"] = bool(
+            re.search(r"\b(projects?|built|developed|implemented|designed)\b", lowered)
+        )
 
     score = 0.0
     reasons: List[str] = []
@@ -182,6 +199,8 @@ def _extract_resume_education(resume_text: str) -> Set[str]:
     text = resume_text.lower()
     found = {keyword for keyword in EDUCATION_KEYWORDS if keyword in text}
     if "bachelor" in text or "b.tech" in text or "b.e" in text:
+        found.add("bachelor")
+    if "bba" in text or "bca" in text or "b.sc" in text or "bsc" in text:
         found.add("bachelor")
     if "master" in text or "m.tech" in text or "m.s" in text or "mba" in text:
         found.add("master")
