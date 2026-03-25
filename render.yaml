@@ -52,5 +52,7 @@ services:
         value: openai/gpt-4.1-nano
       - key: GITHUB_MODELS_TIMEOUT_SECONDS
         value: "10"
+      - key: ENABLE_TRAINING
+        value: "false"
       - key: HF_TOKEN
         sync: false

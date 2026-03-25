@@ -39,6 +39,7 @@ Then set these environment variables on Render:
 - `GITHUB_OPENAI_KEY` or `GITHUB_TOKEN`
 - `GITHUB_MODELS_CHAT_MODEL=openai/gpt-4.1-nano`
 - `GITHUB_MODELS_TIMEOUT_SECONDS=10`
+- `ENABLE_TRAINING=false`
 - optional: `HF_TOKEN`
 
 Create the Render web service from the repo root using [render.yaml](/C:/Users/mrkha/OneDrive/Desktop/resume-screening-model/render.yaml).
@@ -62,6 +63,7 @@ Deploy the `frontend` directory as a Vite app.
 Set these environment variables in Vercel:
 
 - `VITE_API_BASE_URL`
+- `VITE_ENABLE_TRAINING=false`
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
 - `VITE_FIREBASE_PROJECT_ID`

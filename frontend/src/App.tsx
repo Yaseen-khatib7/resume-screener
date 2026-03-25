@@ -14,11 +14,16 @@ const TrainingPage = lazy(() => import("./pages/TrainingPage"));
 const UserManagementPage = lazy(() => import("./pages/UserManagementPage"));
 
 type AppTab = "screening" | "training" | "users";
+const trainingEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_TRAINING === "true";
 
 function AppShell() {
   const { firebaseUser, profile, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  if (!trainingEnabled && location.pathname.startsWith("/app/training")) {
+    return <Navigate to="/app/screening/setup" replace />;
+  }
 
   const [jd, setJd] = useState<File | null>(null);
   const [resumes, setResumes] = useState<File[]>([]);
@@ -28,7 +33,7 @@ function AppShell() {
   const [data, setData] = useState<ScreenResponse | null>(null);
 
   const tab = useMemo<AppTab>(() => {
-    if (location.pathname.startsWith("/app/training")) return "training";
+    if (trainingEnabled && location.pathname.startsWith("/app/training")) return "training";
     if (location.pathname.startsWith("/app/users")) return "users";
     return "screening";
   }, [location.pathname]);
@@ -47,7 +52,7 @@ function AppShell() {
       <div className="topbar appTopbar">
         <div className="brand">
           <div className="brandTitle">Resume Screening System</div>
-          <div className="brandSub">Secure screening, ATS review, explainable ranking, training, and admin access control.</div>
+          <div className="brandSub">Secure screening, ATS review, explainable ranking, and admin access control.</div>
         </div>
 
         <div className="topbarRight">
@@ -59,12 +64,14 @@ function AppShell() {
               Screening
             </button>
 
-            <button
-              className={tab === "training" ? "secondaryBtn" : "linkBtn"}
-              onClick={() => navigate("/app/training")}
-            >
-              Training + NDCG
-            </button>
+            {trainingEnabled ? (
+              <button
+                className={tab === "training" ? "secondaryBtn" : "linkBtn"}
+                onClick={() => navigate("/app/training")}
+              >
+                Training + NDCG
+              </button>
+            ) : null}
 
             {profile?.role === "admin" ? (
               <button
@@ -103,7 +110,7 @@ function AppShell() {
         />
       ) : null}
 
-      {tab === "training" ? (
+      {trainingEnabled && tab === "training" ? (
         <TrainingPage
           jd={jd}
           resumes={resumes}

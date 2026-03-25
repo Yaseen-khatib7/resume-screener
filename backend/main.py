@@ -63,6 +63,7 @@ MODEL_ROOT = os.getenv("MODEL_ROOT", "").strip() or (
     os.path.join(APP_DATA_ROOT, "models") if APP_DATA_ROOT else "models"
 )
 FINETUNED_ROOT = os.getenv("FINETUNED_ROOT", "").strip() or os.path.join(MODEL_ROOT, "finetuned")
+TRAINING_ENABLED = os.getenv("ENABLE_TRAINING", "true").strip().lower() not in {"0", "false", "no"}
 
 MAX_FILE_MB = 12
 MIN_TEXT_CHARS = 300
@@ -254,6 +255,11 @@ def require_admin(profile: Dict[str, Any] = Depends(get_current_user_profile)) -
     if profile.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return profile
+
+
+def ensure_training_enabled() -> None:
+    if not TRAINING_ENABLED:
+        raise HTTPException(status_code=403, detail="Training features are disabled in this environment")
 
 
 def safe_session_dir(session_id: str) -> str:
@@ -1599,6 +1605,7 @@ async def train_finetuned(
     set_as_default: bool = Form(False),
     _: Dict[str, Any] = Depends(require_admin),
 ):
+    ensure_training_enabled()
     jd_text, _ = read_uploaded(jd)
     resumes_data = [{"name": f.filename, "text": read_uploaded(f)[0]} for f in resumes]
     labels = json.loads(labels_json)
@@ -1619,6 +1626,7 @@ async def auto_label_endpoint(
     resumes: List[UploadFile] = File(...),
     _: Dict[str, Any] = Depends(get_current_user_profile),
 ):
+    ensure_training_enabled()
     jd_text, _ = read_uploaded(jd)
     resumes_data = []
 
@@ -1648,6 +1656,7 @@ async def evaluate_ndcg(
     model_choice: str = Form("default"),
     _: Dict[str, Any] = Depends(get_current_user_profile),
 ):
+    ensure_training_enabled()
     jd_text, _ = read_uploaded(jd)
     resumes_data = [{"name": f.filename, "text": read_uploaded(f)[0]} for f in resumes]
     labels = json.loads(labels_json)
