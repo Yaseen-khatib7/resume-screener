@@ -1324,6 +1324,8 @@ def train_and_register_model(
 @app.on_event("startup")
 async def startup_event():
     ensure_registry(BASELINE_MODEL, FINETUNED_ROOT)
+    if os.getenv("DISABLE_MODEL_PRELOAD", "").strip().lower() in {"1", "true", "yes"}:
+        return
     try:
         default_embedder, _ = get_embedder("default")
         _ = default_embedder
