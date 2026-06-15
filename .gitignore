@@ -93,6 +93,7 @@ frontend/.cache/
 # Editors and OS files
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 Thumbs.db

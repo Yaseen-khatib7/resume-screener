@@ -90,6 +90,7 @@ USERS_COLLECTION = "users"
 SETTINGS_COLLECTION = "app_settings"
 EMAIL_TEMPLATES_DOC = "email_templates"
 SKILL_GRAPH_DOC = "skill_graph"
+QUESTION_SETTINGS_DOC = "question_settings"
 BOOTSTRAP_ADMIN_EMAILS = {
     email.strip().lower()
     for email in os.getenv("BOOTSTRAP_ADMIN_EMAILS", "").split(",")
@@ -124,6 +125,10 @@ class EmailTemplatePayload(BaseModel):
 
 class SkillGraphPayload(BaseModel):
     graph: Dict[str, Any]
+
+
+class QuestionSettingsPayload(BaseModel):
+    enabled: bool
 
 
 class CandidateEmailPayload(BaseModel):
@@ -161,6 +166,16 @@ def _serialize_timestamp(value: Any) -> str | None:
         except Exception:
             return None
     return str(value)
+
+
+def _serialize_unix_ms(value: Any) -> str | None:
+    try:
+        millis = int(value)
+    except (TypeError, ValueError):
+        return None
+    if millis <= 0:
+        return None
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _user_doc(uid: str):
@@ -219,6 +234,18 @@ def load_user_profile(uid: str) -> Dict[str, Any] | None:
         "suspended": bool(data.get("suspended")) or data.get("status") == "suspended",
         "createdAt": _serialize_timestamp(data.get("createdAt")),
     }
+
+
+def ensure_user_profile_from_auth_user(auth_user: Any, *, role: str = "hr", status: str = "active") -> Dict[str, Any]:
+    email = str(getattr(auth_user, "email", "") or "").strip()
+    name = str(getattr(auth_user, "display_name", "") or email.split("@")[0] or "User").strip()
+    return ensure_user_profile(
+        uid=str(auth_user.uid),
+        name=name,
+        email=email,
+        role=role,
+        status=status,
+    )
 
 
 def _extract_bearer_token(authorization: str | None) -> str:
@@ -359,6 +386,14 @@ def _load_skill_graph_config() -> Dict[str, Any]:
     data = snap.to_dict() or {}
     graph = data.get("graph")
     return graph if isinstance(graph, dict) and graph else fallback
+
+
+def _load_question_settings() -> Dict[str, bool]:
+    snap = _settings_doc(QUESTION_SETTINGS_DOC).get()
+    if not snap.exists:
+        return {"enabled": True}
+    data = snap.to_dict() or {}
+    return {"enabled": bool(data.get("enabled", True))}
 
 
 def _skill_graph_override_or_none(graph_config: Dict[str, Any] | None) -> Dict[str, Any] | None:
@@ -517,7 +552,11 @@ def read_uploaded(file: UploadFile):
             "message": f"File too large (> {MAX_FILE_MB}MB)"
         }]
 
-    text = (load_uploaded_file(file.filename, raw) or "").strip()
+    try:
+        text = (load_uploaded_file(file.filename, raw) or "").strip()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     warnings = []
 
     if len(text) < MIN_TEXT_CHARS:
@@ -810,12 +849,7 @@ def build_candidate_intelligence(
             }
         )
         if generate_questions
-        else {
-            "skillQuestions": ["Interview questions are generated for shortlisted candidates only."],
-            "projectQuestions": [],
-            "weaknessQuestions": [],
-            "experienceQuestions": [],
-        }
+        else {}
     )
     return {
         **graph_analysis,
@@ -841,12 +875,7 @@ def _default_candidate_intelligence(
         "resumeQualityStatus": quality_status,
         "resumeQualityReasons": ["Detailed resume quality analysis is deferred until candidate review."],
         "improvementSuggestions": ["Open the candidate report to generate full quality and fraud insights."],
-        "interviewQuestions": {
-            "skillQuestions": ["Open the candidate report to generate targeted interview questions."],
-            "projectQuestions": [],
-            "weaknessQuestions": [],
-            "experienceQuestions": [],
-        },
+        "interviewQuestions": {},
     }
 
 
@@ -894,6 +923,7 @@ def score_candidates(
 ) -> Dict[str, Any]:
     warnings: List[Dict[str, Any]] = []
     graph_config = _load_skill_graph_config()
+    question_settings = _load_question_settings()
     graph_override = _skill_graph_override_or_none(graph_config)
 
     embedder, loaded = get_embedder(model_choice)
@@ -1068,7 +1098,7 @@ def score_candidates(
                 jd_preferred=jd_pref,
                 ats_result=ats_result,
                 graph_config=graph_config,
-                generate_questions=item["candidate"] in shortlist_names,
+                generate_questions=question_settings["enabled"] and item["candidate"] in shortlist_names,
             )
             item.update(intelligence)
             item["explanation"] = apply_intelligence_to_explanation(item.get("explanation", {}), intelligence)
@@ -1086,7 +1116,7 @@ def score_candidates(
                     jd_preferred=jd_pref,
                     ats_result=ats_result,
                     graph_config=graph_config,
-                    generate_questions=item["candidate"] in shortlist_names,
+                    generate_questions=question_settings["enabled"] and item["candidate"] in shortlist_names,
                 )
                 future_map[future] = item
 
@@ -1160,12 +1190,7 @@ def build_rejected_candidate(
         "resumeQualityStatus": "Weak",
         "resumeQualityReasons": ["Resume quality analysis was skipped because the resume was rejected at the ATS gate."],
         "improvementSuggestions": ["Fix the ATS issues listed above and resubmit the resume in a clearer format."],
-        "interviewQuestions": {
-            "skillQuestions": [],
-            "projectQuestions": [],
-            "weaknessQuestions": [],
-            "experienceQuestions": [],
-        },
+        "interviewQuestions": {},
         **ats_result,
     }
 
@@ -1181,6 +1206,7 @@ def apply_ats_gate(
 ) -> Dict[str, Any]:
     ats_by_candidate: Dict[str, Dict[str, Any]] = {}
     screenable_resumes: List[Dict[str, str]] = []
+    question_settings = _load_question_settings()
 
     for resume in resumes_data:
         ats_result = evaluate_resume_ats(resume["text"], jd_text)
@@ -1250,6 +1276,7 @@ def apply_ats_gate(
     return {
         "modelUsed": model_used,
         "autoImproveTriggered": False,
+        "questionGenerationEnabled": question_settings["enabled"],
         "warnings": screening_warnings,
         "ranked": final_ranked,
         "shortlist": final_shortlist,
@@ -1515,22 +1542,60 @@ async def update_skill_graph(
     return {"ok": True, "graph": _load_skill_graph_config()}
 
 
+@app.get("/admin/question-settings")
+async def get_question_settings(_: Dict[str, Any] = Depends(require_admin)):
+    return {"ok": True, "settings": _load_question_settings()}
+
+
+@app.patch("/admin/question-settings")
+async def update_question_settings(
+    payload: QuestionSettingsPayload,
+    _: Dict[str, Any] = Depends(require_admin),
+):
+    _settings_doc(QUESTION_SETTINGS_DOC).set({"enabled": bool(payload.enabled)}, merge=True)
+    return {"ok": True, "settings": _load_question_settings()}
+
+
 @app.get("/admin/users")
 async def list_users_endpoint(_: Dict[str, Any] = Depends(require_admin)):
-    docs = get_firestore_client().collection(USERS_COLLECTION).stream()
-    users = []
-    for doc in docs:
+    firestore_users: Dict[str, Dict[str, Any]] = {}
+    for doc in get_firestore_client().collection(USERS_COLLECTION).stream():
         payload = doc.to_dict() or {}
-        users.append({
-            "uid": doc.id,
-            "name": payload.get("name", ""),
-            "email": payload.get("email", ""),
-            "role": "admin" if payload.get("role") == "admin" else "hr",
-            "status": "suspended" if payload.get("status") == "suspended" or payload.get("suspended") else "active",
-            "suspended": bool(payload.get("suspended")) or payload.get("status") == "suspended",
-            "createdAt": _serialize_timestamp(payload.get("createdAt")),
-        })
+        firestore_users[doc.id] = payload
 
+    users_by_uid: Dict[str, Dict[str, Any]] = {}
+
+    for auth_user in get_auth_client().list_users().iterate_all():
+        profile = firestore_users.get(auth_user.uid, {})
+        email = str(profile.get("email") or auth_user.email or "").strip()
+        status = "suspended" if profile.get("status") == "suspended" or profile.get("suspended") or auth_user.disabled else "active"
+        users_by_uid[auth_user.uid] = {
+            "uid": auth_user.uid,
+            "name": str(profile.get("name") or auth_user.display_name or ""),
+            "email": email,
+            "role": "admin" if _bootstrap_role_for_email(email, str(profile.get("role") or "hr")) == "admin" else "hr",
+            "status": status,
+            "suspended": status == "suspended",
+            "createdAt": _serialize_timestamp(profile.get("createdAt"))
+            or _serialize_unix_ms(getattr(getattr(auth_user, "user_metadata", None), "creation_timestamp", None)),
+        }
+
+    for uid, profile in firestore_users.items():
+        if uid in users_by_uid:
+            continue
+        email = str(profile.get("email") or "").strip()
+        status = "suspended" if profile.get("status") == "suspended" or profile.get("suspended") else "active"
+        users_by_uid[uid] = {
+            "uid": uid,
+            "name": str(profile.get("name") or ""),
+            "email": email,
+            "role": "admin" if _bootstrap_role_for_email(email, str(profile.get("role") or "hr")) == "admin" else "hr",
+            "status": status,
+            "suspended": status == "suspended",
+            "createdAt": _serialize_timestamp(profile.get("createdAt")),
+        }
+
+    users = list(users_by_uid.values())
     users.sort(key=lambda item: ((item.get("name") or item.get("email") or "").lower(), item["uid"]))
     return {"ok": True, "users": users}
 
@@ -1548,6 +1613,7 @@ async def create_user_endpoint(
         email=payload.email.strip(),
         password=payload.password,
         display_name=payload.name.strip(),
+        email_verified=True,
         disabled=False,
     )
     profile = ensure_user_profile(
@@ -1576,10 +1642,17 @@ async def update_user_endpoint(
     doc = _user_doc(uid)
     snap = doc.get()
     if not snap.exists:
-        raise HTTPException(status_code=404, detail="User not found")
+        try:
+            auth_user = get_auth_client().get_user(uid)
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail="User not found") from exc
+        ensure_user_profile_from_auth_user(auth_user)
+        snap = doc.get()
 
     if uid == admin_profile["uid"] and status == "suspended":
         raise HTTPException(status_code=400, detail="Admin cannot suspend their own account")
+    if uid == admin_profile["uid"] and role == "hr":
+        raise HTTPException(status_code=400, detail="Admin cannot remove their own admin access")
 
     updates: Dict[str, Any] = {}
     if role is not None:
@@ -1686,7 +1759,7 @@ async def evaluate_ndcg(
         "k": int(k),
         "baseline_model": BASELINE_MODEL,
         "finetuned_loaded": loaded,
-        "evaluation_model": loaded,
+        "evaluation_model": model_choice,
         "ndcg_baseline": float(ndcg_base),
         "ndcg_finetuned": float(ndcg_ft),
     }

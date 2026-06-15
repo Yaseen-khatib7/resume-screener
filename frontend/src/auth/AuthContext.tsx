@@ -11,6 +11,7 @@ import {
   updateProfile,
   type User,
 } from "firebase/auth";
+import { isAxiosError } from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { AuthContext } from "./auth-context";
@@ -67,7 +68,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
 
-    const res = await api.get("/auth/me", { timeout: AUTH_BOOT_TIMEOUT_MS });
+    let res;
+    try {
+      res = await api.get("/auth/me", { timeout: AUTH_BOOT_TIMEOUT_MS });
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 403) {
+        await signOut(auth);
+        setBlockedMessage(String(error.response.data?.detail || "Your account has been suspended. Contact admin."));
+        setFirebaseUser(null);
+        setProfile(null);
+        return null;
+      }
+      throw error;
+    }
+
     const nextProfile = (res.data?.profile || null) as UserProfile | null;
 
     if (nextProfile?.status === "suspended" || nextProfile?.suspended) {
