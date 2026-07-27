@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Pagination from "../components/Pagination";
 import { api } from "../api";
+import { useAuth } from "../auth/useAuth";
 import type {
   AdminUserCreatePayload,
   AdminUserUpdatePayload,
   EmailTemplates,
+  QuestionSettings,
   UserProfile,
   UserRole,
 } from "../types/auth";
@@ -19,6 +21,7 @@ type CreateFormState = {
 };
 
 export default function UserManagementPage() {
+  const { profile } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingUid, setSavingUid] = useState("");
@@ -40,6 +43,7 @@ export default function UserManagementPage() {
     rejectionBody: "",
   });
   const [activeTemplate, setActiveTemplate] = useState<"acceptance" | "processing" | "rejection">("acceptance");
+  const [questionSettings, setQuestionSettings] = useState<QuestionSettings>({ enabled: true });
 
   async function loadUsers() {
     setLoading(true);
@@ -71,6 +75,21 @@ export default function UserManagementPage() {
     }
 
     loadTemplates().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    async function loadQuestionSettings() {
+      try {
+        const res = await api.get("/admin/question-settings");
+        if (res.data?.settings) {
+          setQuestionSettings(res.data.settings as QuestionSettings);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    loadQuestionSettings().catch(() => {});
   }, []);
 
   const filteredUsers = useMemo(() => {
@@ -142,6 +161,29 @@ export default function UserManagementPage() {
     }
   }
 
+  async function saveQuestionSettings(enabled: boolean) {
+    setStatus("");
+    setSavingUid("question-settings");
+    try {
+      const res = await api.patch("/admin/question-settings", { enabled });
+      if (res.data?.settings) {
+        setQuestionSettings(res.data.settings as QuestionSettings);
+      } else {
+        setQuestionSettings({ enabled });
+      }
+      setStatus(
+        enabled
+          ? "Interview question generation turned on for all users."
+          : "Interview question generation turned off for all users."
+      );
+    } catch (error) {
+      console.error(error);
+      setStatus("Could not update interview question generation.");
+    } finally {
+      setSavingUid("");
+    }
+  }
+
   return (
     <div className="card">
       <div className="panelIntro">
@@ -153,6 +195,33 @@ export default function UserManagementPage() {
       </div>
 
       {status ? <div className="statusBanner info" style={{ marginBottom: 12 }}>{status}</div> : null}
+
+      <div className="sectionCard">
+        <div className="cardTitle">Interview Question Generation</div>
+        <div className="hint" style={{ marginBottom: 12 }}>
+          Turn interview question generation on or off for all admin and HR accounts.
+        </div>
+
+        <label className="toggleRow" style={{ marginBottom: 10 }}>
+          <input
+            className="toggleInput"
+            type="checkbox"
+            checked={questionSettings.enabled}
+            onChange={(e) => {
+              const nextEnabled = e.target.checked;
+              setQuestionSettings({ enabled: nextEnabled });
+              saveQuestionSettings(nextEnabled).catch(() => {});
+            }}
+            disabled={savingUid === "question-settings"}
+          />
+          <span className="toggleSwitch" aria-hidden="true">
+            <span className="toggleKnob" />
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            {questionSettings.enabled ? "Question generation is on" : "Question generation is off"}
+          </span>
+        </label>
+      </div>
 
       <div className="sectionCard">
         <div className="cardTitle">Email Templates</div>
@@ -318,6 +387,7 @@ export default function UserManagementPage() {
                         <select
                           value={user.role}
                           onChange={(e) => updateUser(user.uid, { role: e.target.value as UserRole })}
+                          disabled={user.uid === profile?.uid}
                         >
                           <option value="hr">HR</option>
                           <option value="admin">Admin</option>
@@ -331,7 +401,7 @@ export default function UserManagementPage() {
                           onClick={() =>
                             updateUser(user.uid, { status: user.status === "active" ? "suspended" : "active" })
                           }
-                          disabled={savingUid === user.uid}
+                          disabled={savingUid === user.uid || user.uid === profile?.uid}
                         >
                           {savingUid === user.uid
                             ? "Saving..."

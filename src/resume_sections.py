@@ -41,6 +41,12 @@ SECTION_PATTERNS = {
         r"selected projects",
         r"personal projects",
         r"academic projects",
+        r"key achievements",
+        r"achievements",
+        r"accomplishments",
+        r"portfolio",
+        r"case studies",
+        r"assignments",
     ),
     "education": (
         r"education",
@@ -56,6 +62,10 @@ SECTION_PATTERNS = {
         r"qualification",
         r"qualifications",
         r"scholastic details",
+        r"certifications",
+        r"certification",
+        r"courses",
+        r"professional development",
     ),
 }
 

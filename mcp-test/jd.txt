@@ -1,0 +1,12 @@
+Python Developer
+
+We need a Python developer with FastAPI, NLP, machine learning, and resume screening experience.
+
+Responsibilities
+- Build and maintain FastAPI services
+- Develop NLP pipelines for parsing and ranking resumes
+- Work on semantic matching, model evaluation, and ATS filtering
+
+Preferred
+- Experience with scoring systems, text extraction, and recruiter workflow tools
+- Strong communication and documentation skills

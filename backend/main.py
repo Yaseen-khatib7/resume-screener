@@ -29,6 +29,7 @@ from src.ats_store import load_ats_state, sync_ats_candidates, update_ats_candid
 from src.fraud_detection import detect_resume_fraud
 from src.resume_quality import evaluate_resume_quality
 from src.resume_sections import split_resume_sections
+from src.role_alignment import assess_role_alignment
 from src.interview_questions import generate_interview_questions
 from src.model_registry import (
     build_versioned_model_id,
@@ -75,12 +76,17 @@ MAX_TEXT_CHUNKS = 4
 STORAGE_ROOT = os.getenv("STORAGE_ROOT", "").strip() or (
     os.path.join(APP_DATA_ROOT, "backend-storage") if APP_DATA_ROOT else os.path.join("backend", "storage")
 )
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173").split(",")
+    if origin.strip()
+]
 
 app = FastAPI(title="Resume Screening API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOWED_ORIGINS or ["http://127.0.0.1:5173", "http://localhost:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -287,6 +293,24 @@ def require_admin(profile: Dict[str, Any] = Depends(get_current_user_profile)) -
 def ensure_training_enabled() -> None:
     if not TRAINING_ENABLED:
         raise HTTPException(status_code=403, detail="Training features are disabled in this environment")
+
+
+def parse_labels_json(labels_json: str) -> List[int]:
+    try:
+        labels = json.loads(labels_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="labels_json must be valid JSON") from exc
+
+    if not isinstance(labels, list):
+        raise HTTPException(status_code=400, detail="labels_json must be a JSON array of numeric labels")
+
+    parsed: List[int] = []
+    for idx, value in enumerate(labels):
+        try:
+            parsed.append(int(value))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"Label at index {idx} must be numeric") from exc
+    return parsed
 
 
 def safe_session_dir(session_id: str) -> str:
@@ -1004,6 +1028,8 @@ def score_candidates(
         intelligence = _default_candidate_intelligence(graph_analysis=graph_analysis, ats_result=ats_result)
         graph_score = float(graph_analysis.get("graphSkillScore", 0.0)) / 100.0
         ats_signal = float(ats_result.get("atsScore", 0.0)) / 100.0
+        role_alignment = assess_role_alignment(jd_text, r["text"])
+        role_score = float(role_alignment["roleAlignmentScore"])
 
         score = (
             semantic_w * semantic_score
@@ -1013,6 +1039,12 @@ def score_candidates(
             + graph_w * graph_score
         ) * 100.0
         score = (score * 0.82) + (ats_signal * 18.0)
+        if role_alignment["roleMismatch"]:
+            score -= 28.0 + (10.0 * style_value)
+            score = min(score, 42.0)
+        elif role_score < 0.5:
+            score -= 10.0 + (8.0 * style_value)
+            score = min(score, 62.0)
         if req_cov >= 0.5:
             score += 4.0 + (8.0 * style_value)
         elif req_cov >= 0.3:
@@ -1023,9 +1055,9 @@ def score_candidates(
             score += 4.0 - (2.0 * style_value)
         if jd_req:
             if req_cov == 0.0:
-                score -= 14.0 + (8.0 * style_value)
+                score -= 18.0 + (10.0 * style_value)
             elif req_cov < 0.12:
-                score -= 4.0 + (4.0 * style_value)
+                score -= 8.0 + (6.0 * style_value)
         score = round(max(0.0, min(100.0, score)), 1)
 
         matched = sorted(list(res_skills & (jd_req | jd_pref)))
@@ -1045,6 +1077,12 @@ def score_candidates(
             max_points=5
         )
         explanation = apply_intelligence_to_explanation(explanation, intelligence)
+        if role_alignment["roleReasons"]:
+            explanation["whyBad"] = (role_alignment["roleReasons"] + explanation.get("whyBad", []))[:5]
+            explanation["recommendation"] = "Reject"
+            explanation["recommendationReason"] = role_alignment["roleReasons"][0]
+        elif role_alignment["roleWarnings"]:
+            explanation["whyBad"] = (role_alignment["roleWarnings"][:1] + explanation.get("whyBad", []))[:5]
 
         candidate_projects = extract_project_candidates_from_resume(r["text"])
         candidate_experience_years = extract_experience_years(r["text"])
@@ -1065,6 +1103,7 @@ def score_candidates(
             "recommendationReason": explanation.get("recommendationReason"),
             "explanation": explanation,
             "interviewQuestions": intelligence.get("interviewQuestions", {}),
+            "roleAlignment": role_alignment,
             **intelligence,
         })
 
@@ -1683,7 +1722,7 @@ async def train_finetuned(
     ensure_training_enabled()
     jd_text, _ = read_uploaded(jd)
     resumes_data = [{"name": f.filename, "text": read_uploaded(f)[0]} for f in resumes]
-    labels = json.loads(labels_json)
+    labels = parse_labels_json(labels_json)
     return train_and_register_model(
         jd_text=jd_text,
         resumes_data=resumes_data,
@@ -1734,7 +1773,7 @@ async def evaluate_ndcg(
     ensure_training_enabled()
     jd_text, _ = read_uploaded(jd)
     resumes_data = [{"name": f.filename, "text": read_uploaded(f)[0]} for f in resumes]
-    labels = json.loads(labels_json)
+    labels = parse_labels_json(labels_json)
 
     names = [r["name"] for r in resumes_data]
     if len(labels) != len(names):

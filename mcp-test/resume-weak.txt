@@ -1,0 +1,16 @@
+Anita Verma
+anita.verma@email.com
+
+Skills
+React, TypeScript, CSS, UI Design
+
+Experience
+Frontend Developer, XYZ Studio
+2021 - 2026
+Built dashboard interfaces and internal admin tools for web applications.
+
+Projects
+UI dashboard for operations teams.
+
+Education
+B.Sc in Information Technology

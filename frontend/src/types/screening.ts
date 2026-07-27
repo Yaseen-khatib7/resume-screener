@@ -81,6 +81,7 @@ export type ScreenResponse = {
   session_id?: string;
   modelUsed: string;
   autoImproveTriggered: boolean;
+  questionGenerationEnabled?: boolean;
   warnings?: { file: string; severity: string; message: string }[];
   extractionStats?: {
     jdChars: number;

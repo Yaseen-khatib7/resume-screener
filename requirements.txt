@@ -10,8 +10,11 @@ numpy
 pandas
 pymupdf
 python-docx
+pillow
+pytesseract
 tqdm
 rapidfuzz
 firebase-admin
 azure-ai-inference
 azure-core
+mcp

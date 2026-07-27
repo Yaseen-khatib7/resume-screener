@@ -279,6 +279,7 @@ export default function ScreeningPage({
             <CandidateDrawer
               open={!!selectedObj}
               candidate={selectedObj}
+              questionGenerationEnabled={Boolean(data?.questionGenerationEnabled)}
               onClose={() => setSelectedCandidate(null)}
             />
           </>

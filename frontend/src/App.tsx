@@ -21,10 +21,6 @@ function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (!trainingEnabled && location.pathname.startsWith("/app/training")) {
-    return <Navigate to="/app/screening/setup" replace />;
-  }
-
   const [jd, setJd] = useState<File | null>(null);
   const [resumes, setResumes] = useState<File[]>([]);
   const [matchStyle, setMatchStyle] = useState<number>(0.5);
@@ -37,6 +33,10 @@ function AppShell() {
     if (location.pathname.startsWith("/app/users")) return "users";
     return "screening";
   }, [location.pathname]);
+
+  if (!trainingEnabled && location.pathname.startsWith("/app/training")) {
+    return <Navigate to="/app/screening/setup" replace />;
+  }
 
   const displayName = profile?.name || firebaseUser?.displayName || profile?.email || firebaseUser?.email || "Signed in";
   const displayEmail = profile?.email || firebaseUser?.email || "";

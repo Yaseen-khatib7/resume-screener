@@ -4,12 +4,13 @@ import { useAuth } from "../auth/useAuth";
 export default function SuspendedPage() {
   const { blockedMessage, clearBlockedMessage } = useAuth();
   const message = blockedMessage || "Your account has been suspended. Contact admin.";
+  const title = message.toLowerCase().includes("suspended") ? "Account Suspended" : "Account Check Failed";
 
   return (
     <div className="authShell">
       <div className="authCard">
         <div className="authHeader">
-          <div className="brandTitle">Account Suspended</div>
+          <div className="brandTitle">{title}</div>
           <div className="brandSub">{message}</div>
         </div>
 

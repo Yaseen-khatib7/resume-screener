@@ -18,6 +18,30 @@ BASE_SKILLS = {
     "data pipelines", "model deployment", "model monitoring", "mlops",
     "spark", "hadoop", "airflow", "tableau", "power bi",
     "git", "linux", "statistics", "data science",
+    "excel", "google sheets", "powerpoint", "word", "microsoft office",
+    "business analysis", "requirement gathering", "requirements analysis", "stakeholder management",
+    "user stories", "acceptance criteria", "process mapping", "process improvement", "brd", "frd",
+    "uat", "agile", "scrum", "jira", "confluence",
+    "project management", "program management", "product management", "roadmap planning",
+    "risk management", "budgeting", "vendor management", "change management",
+    "sales", "business development", "lead generation", "prospecting", "cold calling",
+    "account management", "client relationship management", "negotiation", "crm",
+    "salesforce", "hubspot", "zoho crm", "customer success", "customer support",
+    "marketing", "digital marketing", "seo", "sem", "social media marketing",
+    "content writing", "copywriting", "email marketing", "campaign management",
+    "market research", "brand management", "google analytics",
+    "recruitment", "talent acquisition", "sourcing", "screening", "onboarding",
+    "employee engagement", "payroll", "performance management", "hr operations",
+    "accounting", "bookkeeping", "financial analysis", "financial reporting",
+    "accounts payable", "accounts receivable", "taxation", "gst", "tally", "quickbooks",
+    "operations management", "supply chain", "procurement", "inventory management",
+    "logistics", "quality assurance", "quality control", "mis reporting",
+    "teaching", "curriculum development", "lesson planning", "classroom management",
+    "training", "instructional design", "coaching",
+    "healthcare", "nursing", "patient care", "clinical documentation",
+    "legal research", "contract management", "compliance", "case management",
+    "communication", "leadership", "teamwork", "problem solving", "analytical skills",
+    "time management", "presentation skills", "documentation", "reporting",
 }
 
 BASE_ALIASES = {
@@ -55,11 +79,83 @@ BASE_ALIASES = {
     "postgre sql": "postgresql",
     "gen ai": "genai",
     "large language models": "llm",
+    "ms office": "microsoft office",
+    "microsoft excel": "excel",
+    "advance excel": "excel",
+    "advanced excel": "excel",
+    "google sheet": "google sheets",
+    "power point": "powerpoint",
+    "ppt": "powerpoint",
+    "business analyst": "business analysis",
+    "requirements gathering": "requirement gathering",
+    "requirements elicitation": "requirement gathering",
+    "requirement elicitation": "requirement gathering",
+    "brd/frd": "brd",
+    "business requirements document": "brd",
+    "functional requirements document": "frd",
+    "user story": "user stories",
+    "acceptance criterias": "acceptance criteria",
+    "process modelling": "process mapping",
+    "process modeling": "process mapping",
+    "project manager": "project management",
+    "program manager": "program management",
+    "product manager": "product management",
+    "key account management": "account management",
+    "client management": "client relationship management",
+    "relationship management": "client relationship management",
+    "customer service": "customer support",
+    "customer care": "customer support",
+    "bd": "business development",
+    "inside sales": "sales",
+    "b2b sales": "sales",
+    "b2c sales": "sales",
+    "search engine optimization": "seo",
+    "search engine marketing": "sem",
+    "smm": "social media marketing",
+    "content creation": "content writing",
+    "talent sourcing": "sourcing",
+    "resume screening": "screening",
+    "cv screening": "screening",
+    "joining formalities": "onboarding",
+    "hr": "hr operations",
+    "human resources": "hr operations",
+    "ap": "accounts payable",
+    "ar": "accounts receivable",
+    "goods and services tax": "gst",
+    "mis": "mis reporting",
+    "supply chain management": "supply chain",
+    "scm": "supply chain",
+    "purchase": "procurement",
+    "qa": "quality assurance",
+    "qc": "quality control",
+    "teacher": "teaching",
+    "trainer": "training",
+    "patient handling": "patient care",
+    "contracts": "contract management",
+    "legal drafting": "contract management",
+    "verbal communication": "communication",
+    "written communication": "communication",
+    "interpersonal skills": "communication",
+    "team player": "teamwork",
+    "collaboration": "teamwork",
+    "analytical thinking": "analytical skills",
+    "problem-solving": "problem solving",
+    "presentation": "presentation skills",
 }
 
 GRAPH_DATA_PATH = Path(__file__).with_name("skill_graph_data.json")
 PREF_HINTS = ["nice to have", "preferred", "bonus", "good to have", "plus"]
 REQ_HINTS = ["must have", "required", "requirements", "we require", "minimum qualifications", "must possess"]
+GENERIC_PARENT_SKILLS = {
+    "management",
+    "reporting",
+    "screening",
+    "documentation",
+    "training",
+    "testing",
+    "database",
+    "automation",
+}
 
 
 def _load_graph_terms() -> Tuple[Set[str], Dict[str, str]]:
@@ -167,6 +263,21 @@ def extract_skills(text: str, fuzzy_threshold: int = 92) -> Tuple[Set[str], Dict
     return set(keys), dict(items)
 
 
+def _prune_requirement_skills(skills: Set[str]) -> Set[str]:
+    pruned = set(skills)
+    lowered = {skill.lower() for skill in skills}
+    for generic in GENERIC_PARENT_SKILLS:
+        if generic not in pruned:
+            continue
+        has_specific = any(
+            skill != generic and generic in skill and len(skill.split()) > 1
+            for skill in lowered
+        )
+        if has_specific:
+            pruned.discard(generic)
+    return pruned
+
+
 def split_jd_required_preferred(jd_text: str) -> Tuple[Set[str], Set[str]]:
     if not jd_text:
         return set(), set()
@@ -196,6 +307,8 @@ def split_jd_required_preferred(jd_text: str) -> Tuple[Set[str], Set[str]]:
     if not req and not pref:
         req, _ = extract_skills(jd_text)
 
+    req = _prune_requirement_skills(req)
+    pref = _prune_requirement_skills(pref)
     return req, pref - req
 
 

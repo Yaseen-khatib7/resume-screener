@@ -45,3 +45,7 @@ export type EmailTemplates = {
   rejectionSubject: string;
   rejectionBody: string;
 };
+
+export type QuestionSettings = {
+  enabled: boolean;
+};

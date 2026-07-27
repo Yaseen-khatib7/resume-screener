@@ -4,12 +4,21 @@ from typing import Any, Dict, List, Set
 
 from src.contact_info import extract_emails
 from src.resume_sections import split_resume_sections
+from src.role_alignment import assess_role_alignment
 from src.skill_graph import analyze_skill_graph_match
 from src.skills import extract_skills, split_jd_required_preferred
 
 
 PAGE_EQUIVALENT_CHARS = 1800
 EDUCATION_KEYWORDS = {
+    "bachelor",
+    "master",
+    "mba",
+    "bba",
+    "bcom",
+    "mcom",
+    "diploma",
+    "certification",
     "computer science",
     "artificial intelligence",
     "data science",
@@ -17,6 +26,15 @@ EDUCATION_KEYWORDS = {
     "statistics",
     "information technology",
     "software engineering",
+    "business administration",
+    "commerce",
+    "finance",
+    "accounting",
+    "marketing",
+    "human resources",
+    "nursing",
+    "law",
+    "education",
 }
 
 
@@ -117,7 +135,7 @@ def _score_sections(text: str) -> tuple[float, List[str], List[str], Dict[str, A
 
     if not present["projects"]:
         present["projects"] = bool(
-            re.search(r"\b(projects?|built|developed|implemented|designed)\b", lowered)
+            re.search(r"\b(projects?|built|developed|implemented|designed|achievements?|accomplishments?|case stud(?:y|ies)|portfolio|assignments?)\b", lowered)
         )
 
     score = 0.0
@@ -134,7 +152,7 @@ def _score_sections(text: str) -> tuple[float, List[str], List[str], Dict[str, A
             reasons.append(f"Missing a clear {name} section.")
 
     if not present["projects"]:
-        warnings.append("No projects section detected.")
+        warnings.append("No projects, achievements, or work-sample section detected.")
 
     metrics = {
         "presentSections": [name for name, is_present in present.items() if is_present],
@@ -200,9 +218,9 @@ def _extract_resume_education(resume_text: str) -> Set[str]:
     found = {keyword for keyword in EDUCATION_KEYWORDS if keyword in text}
     if "bachelor" in text or "b.tech" in text or "b.e" in text:
         found.add("bachelor")
-    if "bba" in text or "bca" in text or "b.sc" in text or "bsc" in text:
+    if "bba" in text or "bca" in text or "b.sc" in text or "bsc" in text or "b.com" in text or "bcom" in text or re.search(r"\bba\b", text):
         found.add("bachelor")
-    if "master" in text or "m.tech" in text or "m.s" in text or "mba" in text:
+    if "master" in text or "m.tech" in text or "m.s" in text or "mba" in text or "m.com" in text or "mcom" in text or re.search(r"\bma\b", text):
         found.add("master")
     return found
 
@@ -440,20 +458,27 @@ def evaluate_resume_ats(resume_text: str, jd_text: str) -> Dict[str, Any]:
     length_score, length_reasons, length_warnings, length_metrics = _score_length(resume_text)
     experience_score, experience_reasons, experience_warnings, experience_metrics = _score_experience_alignment(resume_text, jd_text)
     education_score, education_reasons, education_warnings, education_metrics = _score_education_alignment(resume_text, jd_text)
+    role_alignment = assess_role_alignment(jd_text, resume_text)
+    role_score = float(role_alignment["roleAlignmentScore"])
 
     keyword_score = _clamp((keyword_score * 0.8) + (experience_score * 0.12) + (education_score * 0.08))
 
     weighted_score = (
-        text_score * 0.25
-        + section_score * 0.20
+        text_score * 0.20
+        + section_score * 0.16
         + keyword_score * 0.30
-        + structure_score * 0.15
-        + length_score * 0.10
+        + role_score * 0.16
+        + structure_score * 0.10
+        + length_score * 0.08
     ) * 100.0
 
     ats_score = round(max(0.0, min(100.0, weighted_score)), 1)
 
-    if contact_score <= 0:
+    if role_alignment["roleMismatch"]:
+        ats_score = min(ats_score, 49.0)
+        ats_status = "FAIL"
+        ats_decision = "Reject"
+    elif contact_score <= 0:
         ats_score = min(ats_score, 55.0)
         ats_status = "FAIL"
         ats_decision = "Reject"
@@ -476,6 +501,7 @@ def evaluate_resume_ats(resume_text: str, jd_text: str) -> Dict[str, Any]:
         + length_reasons
         + experience_reasons
         + education_reasons
+        + role_alignment["roleReasons"]
     )
     warnings = _dedupe(
         text_warnings
@@ -486,6 +512,7 @@ def evaluate_resume_ats(resume_text: str, jd_text: str) -> Dict[str, Any]:
         + length_warnings
         + experience_warnings
         + education_warnings
+        + role_alignment["roleWarnings"]
     )
 
     if not reasons and ats_status == "PASS":
@@ -501,6 +528,7 @@ def evaluate_resume_ats(resume_text: str, jd_text: str) -> Dict[str, Any]:
             "textExtractionQuality": round(text_score * 100, 1),
             "sectionPresence": round(section_score * 100, 1),
             "keywordSkillMatch": round(keyword_score * 100, 1),
+            "roleAlignment": round(role_score * 100, 1),
             "structureQuality": round(structure_score * 100, 1),
             "resumeLengthQuality": round(length_score * 100, 1),
         },
@@ -513,5 +541,6 @@ def evaluate_resume_ats(resume_text: str, jd_text: str) -> Dict[str, Any]:
             "length": length_metrics,
             "experience": experience_metrics,
             "education": education_metrics,
+            "roleAlignment": role_alignment["roleMetrics"],
         },
     }

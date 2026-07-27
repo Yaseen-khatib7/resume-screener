@@ -25,10 +25,12 @@ function QualityBadge({ status }: { status?: Candidate["resumeQualityStatus"] })
 export default function CandidateDrawer({
   open,
   candidate,
+  questionGenerationEnabled,
   onClose,
 }: {
   open: boolean;
   candidate: Candidate | null;
+  questionGenerationEnabled: boolean;
   onClose: () => void;
 }) {
   const [mailingAction, setMailingAction] = useState<"" | "accept" | "reject" | "process">("");
@@ -63,6 +65,14 @@ export default function CandidateDrawer({
   const projectQuestions = loadedQuestions.projectQuestions || [];
   const weaknessQuestions = loadedQuestions.weaknessQuestions || [];
   const experienceQuestions = loadedQuestions.experienceQuestions || [];
+  const hasInterviewQuestions =
+    questionGenerationEnabled &&
+    (
+      skillQuestions.length > 0 ||
+      projectQuestions.length > 0 ||
+      weaknessQuestions.length > 0 ||
+      experienceQuestions.length > 0
+    );
 
   useEffect(() => {
     setInterviewQuestions(candidate?.interviewQuestions || {});
@@ -212,7 +222,7 @@ export default function CandidateDrawer({
               {mailStatus.text}
             </div>
           ) : null}
-        </div>
+          </div>
 
         <div className="drawerSection">
           <div className="sectionTitle">ATS Validation</div>
@@ -350,10 +360,10 @@ export default function CandidateDrawer({
           )}
         </div>
 
-        <div className="drawerSection">
+        {hasInterviewQuestions ? <div className="drawerSection">
           <button className="drawerDropdown" onClick={() => setInterviewOpen((current) => !current)}>
             <span className="sectionTitle" style={{ margin: 0 }}>Interview Questions</span>
-            <span className="drawerDropdownIcon">{interviewOpen ? "−" : "+"}</span>
+            <span className="drawerDropdownIcon">{interviewOpen ? "-" : "+"}</span>
           </button>
 
           {interviewOpen ? (
@@ -388,7 +398,7 @@ export default function CandidateDrawer({
               />
             </div>
           ) : null}
-        </div>
+        </div> : null}
 
         <div className="drawerSection">
           <div className="sectionTitle">Projects Done</div>
@@ -517,7 +527,7 @@ function QuestionGroup({
     <div className="nestedDropdown">
       <button className="nestedDropdownBtn" onClick={onToggle}>
         <span>{title}</span>
-        <span className="drawerDropdownIcon">{open ? "−" : "+"}</span>
+        <span className="drawerDropdownIcon">{open ? "-" : "+"}</span>
       </button>
       {open ? (
         items.length ? (

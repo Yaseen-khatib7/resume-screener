@@ -68,6 +68,114 @@ SKILL_QUESTION_BANK = {
     "node.js": [
         "What patterns do you use in Node.js services to handle concurrency and error management?",
     ],
+    "business analysis": [
+        "How do you move from a business problem to clear, testable requirements?",
+        "Tell me about a time you handled conflicting stakeholder expectations.",
+    ],
+    "requirement gathering": [
+        "What techniques do you use to uncover requirements that stakeholders may not state directly?",
+        "How do you validate that documented requirements match the actual business need?",
+    ],
+    "stakeholder management": [
+        "How do you keep stakeholders aligned when priorities or timelines change?",
+        "Describe a time you had to influence a decision without direct authority.",
+    ],
+    "project management": [
+        "How do you track delivery risks and communicate them before they become blockers?",
+        "Tell me about a project where scope, timeline, or resources changed mid-way.",
+    ],
+    "management": [
+        "How do you prioritize work when multiple stakeholders need different outcomes?",
+        "Tell me about a time you improved coordination across people, process, or tools.",
+    ],
+    "sales": [
+        "How do you qualify a prospect and decide where to spend your follow-up time?",
+        "Tell me about a difficult objection you handled and what you changed after it.",
+    ],
+    "crm": [
+        "How do you keep CRM data useful for follow-ups, forecasting, and handovers?",
+        "Tell me about a time CRM insights changed how you handled an account or pipeline.",
+    ],
+    "negotiation": [
+        "How do you prepare for a negotiation when price, timeline, and relationship all matter?",
+        "Describe a negotiation where you protected value while still reaching agreement.",
+    ],
+    "business development": [
+        "How do you identify and prioritize new business opportunities?",
+        "Walk me through how you convert an initial lead into a concrete next step.",
+    ],
+    "customer support": [
+        "How do you handle an unhappy customer while still protecting company policy?",
+        "Tell me about a recurring customer issue you helped reduce or resolve.",
+    ],
+    "marketing": [
+        "How do you decide whether a campaign is working beyond surface-level metrics?",
+        "Describe a campaign or content initiative you improved after reviewing performance data.",
+    ],
+    "digital marketing": [
+        "How do you balance paid, organic, and content channels for a campaign goal?",
+        "Which metrics do you monitor first when campaign performance drops?",
+    ],
+    "content writing": [
+        "How do you adapt the same message for different audiences or channels?",
+        "Tell me about a piece of content you revised based on feedback or results.",
+    ],
+    "recruitment": [
+        "How do you screen candidates when a hiring manager's requirements are broad or unclear?",
+        "Tell me about a difficult role you helped close and how you adjusted your sourcing strategy.",
+    ],
+    "talent acquisition": [
+        "How do you evaluate candidate quality beyond keyword overlap?",
+        "How do you keep candidates engaged through a slow hiring process?",
+    ],
+    "accounting": [
+        "How do you ensure accuracy when working with high-volume financial records?",
+        "Tell me about a reconciliation or reporting issue you identified and fixed.",
+    ],
+    "financial analysis": [
+        "How do you explain financial insights to a non-finance stakeholder?",
+        "Walk me through an analysis where your recommendation affected a business decision.",
+    ],
+    "reporting": [
+        "How do you decide which metrics belong in a recurring report?",
+        "Tell me about a report or dashboard you improved so stakeholders could act faster.",
+    ],
+    "operations management": [
+        "How do you identify the root cause of an operational delay or quality issue?",
+        "Tell me about a process improvement you implemented and how you measured it.",
+    ],
+    "procurement": [
+        "How do you evaluate vendors beyond price?",
+        "Describe a negotiation or supplier issue you handled under time pressure.",
+    ],
+    "teaching": [
+        "How do you adapt your teaching when learners are progressing at different speeds?",
+        "Tell me about a lesson or training session you changed after seeing learner outcomes.",
+    ],
+    "training": [
+        "How do you measure whether a training program improved on-the-job performance?",
+        "Describe how you design training for learners with different experience levels.",
+    ],
+    "patient care": [
+        "How do you prioritize patient needs during a busy shift or high-pressure situation?",
+        "Tell me about a time accurate documentation or communication changed a patient outcome.",
+    ],
+    "legal research": [
+        "How do you verify that your legal research is complete and current?",
+        "Tell me about a matter where you had to summarize complex legal information clearly.",
+    ],
+    "communication": [
+        "Tell me about a time you had to explain a complex issue to a non-specialist audience.",
+        "How do you adjust your communication style for different stakeholders?",
+    ],
+    "leadership": [
+        "Describe a time you helped a team perform better without simply taking over the work.",
+        "How do you handle accountability when a team misses a target?",
+    ],
+    "problem solving": [
+        "Walk me through a complex problem you solved from diagnosis to outcome.",
+        "How do you decide between a quick fix and a deeper process change?",
+    ],
 }
 
 GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference"
@@ -100,8 +208,8 @@ def _clean_list(values: Iterable[str] | None) -> List[str]:
 def _project_question(project: str) -> List[str]:
     short_name = project.strip().rstrip(".")
     return [
-        f"Can you walk me through the project '{short_name}' and the problem it was solving?",
-        f"What were the main technical challenges in '{short_name}', and how did you resolve them?",
+        f"Can you walk me through '{short_name}' and the problem or goal it addressed?",
+        f"What was your specific contribution in '{short_name}', and how did you measure success?",
     ]
 
 
@@ -109,21 +217,21 @@ def _weakness_question(skill: str) -> List[str]:
     topic = skill.strip()
     return [
         f"What is your current understanding of {topic}, and how would you ramp up quickly if the role required it?",
-        f"How would you approach a task involving {topic} if you had to deliver in a production setting?",
+        f"How would you approach work involving {topic} if you had to deliver it with limited prior experience?",
     ]
 
 
 def _experience_question(experience_summary: str) -> List[str]:
     if experience_summary and experience_summary.lower() != "not clearly mentioned":
         return [
-            f"You mention {experience_summary} of experience. What has been the most technically challenging problem during that time?",
-            "Tell me about a time you improved performance, reliability, or maintainability in a real project.",
+            f"You mention {experience_summary} of experience. What has been the most challenging work situation during that time?",
+            "Tell me about a time you improved a process, outcome, or stakeholder experience.",
             "Describe a situation where you had to collaborate across functions or resolve a difficult delivery constraint.",
         ]
     return [
-        "Tell me about a technically challenging project you worked on and your specific contribution.",
-        "Describe a time you had to improve an existing system under constraints.",
-        "How do you approach teamwork, ownership, and technical tradeoffs during delivery?",
+        "Tell me about a challenging assignment you worked on and your specific contribution.",
+        "Describe a time you had to improve an existing process or piece of work under constraints.",
+        "How do you approach teamwork, ownership, and tradeoffs during delivery?",
     ]
 
 
@@ -215,7 +323,7 @@ def _fallback_questions(candidate_data: Dict[str, Any]) -> Dict[str, List[str]]:
         if questions:
             skill_questions.extend(questions[:2])
         else:
-            skill_questions.append(f"How have you applied {skill} in production or project work, and what tradeoffs did you encounter?")
+            skill_questions.append(f"How have you applied {skill} in real work, and what tradeoffs or constraints did you handle?")
         if len(skill_questions) >= 6:
             break
 
@@ -247,7 +355,7 @@ def _build_prompt(candidate_data: Dict[str, Any]) -> str:
         "Generate interview questions for this candidate.\n"
         "Return strict JSON only with: skillQuestions, projectQuestions, weaknessQuestions, experienceQuestions.\n"
         "Each value must be an array of strings.\n"
-        "Use short, practical questions.\n"
+        "Use short, practical questions suitable for the candidate's actual role domain, including non-technical roles.\n"
         "Limits: skillQuestions max 6, projectQuestions 5 or 6 when projects exist, weaknessQuestions max 6, experienceQuestions max 4.\n"
         "Project questions must cover multiple listed projects when possible, with at most two per project.\n"
         "Do not add praise or invent details.\n"
@@ -353,7 +461,7 @@ def _complete_with_timeout(*, client: Any, model_name: str, candidate_data: Dict
         client.complete,
         messages=[
             SystemMessage(
-                "You generate targeted technical interview questions for recruiters. "
+                "You generate targeted role-specific interview questions for recruiters. "
                 "Your questions must be realistic, neutral, and easy for an interviewer to ask out loud. "
                 "Return strict JSON only."
             ),

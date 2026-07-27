@@ -186,7 +186,7 @@ def resolve_model(
         return baseline_name, BASELINE_ID
 
     path = chosen.get("path")
-    if path and os.path.exists(os.path.join(path, "config.json")):
+    if _is_valid_model_root(path):
         return path, chosen["id"]
 
     return baseline_name, BASELINE_ID

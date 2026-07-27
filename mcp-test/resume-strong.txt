@@ -1,0 +1,19 @@
+Rahul Sharma
+rahul.sharma@email.com
+
+Skills
+Python, FastAPI, NLP, Machine Learning, Scikit-learn, Pandas, REST APIs, Text Parsing, Ranking Systems
+
+Experience
+Software Engineer, ABC Tech
+2022 - 2026
+Built FastAPI services for document parsing and resume screening workflows.
+Developed NLP pipelines for skill extraction, semantic matching, candidate ranking, and ATS filtering.
+Worked on model evaluation, scoring systems, and recruiter-facing workflow tools.
+
+Projects
+Resume screening system using FastAPI and sentence transformers.
+Candidate ranking pipeline with explainable scoring and ATS validation.
+
+Education
+B.Tech in Computer Science

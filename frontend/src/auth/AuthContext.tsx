@@ -56,6 +56,17 @@ function mapFirebaseError(error: unknown): string {
   }
 }
 
+function mapProfileError(error: unknown): string {
+  if (isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (detail) return String(detail);
+    if (error.response?.status === 401) return "Your login expired. Sign in again.";
+    if (error.response?.status) return `Backend profile check failed with status ${error.response.status}.`;
+    if (error.code === "ECONNABORTED") return "Backend profile check timed out. Make sure the API server is running.";
+  }
+  return "Could not verify your account with the backend. Make sure the API server is running.";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -121,7 +132,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await refreshProfile();
       } catch (error) {
         console.error(error);
-        setBlockedMessage(null);
+        setProfile(null);
+        setBlockedMessage(mapProfileError(error));
       } finally {
         setLoading(false);
       }
@@ -164,11 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!auth) throw new Error(firebaseConfigError || "Firebase is not configured.");
       setBlockedMessage(null);
       await signInWithPopup(auth, googleProvider);
-      try {
-        await refreshProfile();
-      } catch (error) {
-        console.error(error);
-      }
+      await refreshProfile();
     } catch (error) {
       const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
       if (auth && code in {
